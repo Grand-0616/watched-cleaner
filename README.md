@@ -36,18 +36,20 @@ watched-cleaner/
 ├── app.py                  Flask 后端（/api/watched 已看清单、/api/downloaders 下载器管理）
 ├── cleaner.py              核心：飞牛影视已看读取 + 下载器客户端 + 文件路径匹配
 ├── templates/index.html    WebUI 前端（自动加载清单、勾选删除、下载器设置）
-├── config.example.json     配置模板（fnnas 数据库/用户/路径映射 + 默认下载器地址）
-├── downloaders.example.json 下载器配置模板（WebUI 可写，优先于 config.json）
+├── config.example.json     配置模板（首次启动据此生成 config/config.json）
+├── downloaders.example.json 下载器配置模板
+├── config/                 运行期配置目录（挂载进容器，不在 git 里）
+│   ├── config.json         首次启动自动生成，账号/口令填这里
+│   └── downloaders.json    首次启动自动生成，WebUI 增删改下载器写这里
 ├── Dockerfile
-├── docker-compose.yml      （含飞牛影视数据库只读挂载 + downloaders.json 可写挂载）
+├── docker-compose.yml      （飞牛影视数据库只读挂载 + config 目录挂载）
 ├── requirements.txt
 ├── .gitignore
 └── README.md               本文件
 ```
 
-> `config.json` 和 `downloaders.json` **不在仓库里**，由你在 NAS 上从 `.example.json` 复制生成，
-> 已被 `.gitignore` 排除。这样做的好处是：`git pull` 更新代码、重新 `docker compose build`
-> 都不会覆盖你已填好的账号、口令和下载器设置。
+> `config/` 整个目录都不在仓库里（已被 `.gitignore` 排除），由容器首次启动时自动生成。
+> 所以 `git pull` 更新代码、重新 `docker compose build` 都不会覆盖你已填好的账号、口令和下载器设置。
 
 ---
 
@@ -57,23 +59,34 @@ watched-cleaner/
 
 把 `watched_cleaner_webui_v2/` 整个目录放到 NAS 的一个目录（例如 `/vol1/docker/watched-cleaner`）。
 
-### 3.2 生成你自己的配置文件（首次必做）
-
-仓库里只有模板，先把它们复制成实际配置：
+### 3.2 启动（一条命令，配置自动生成）
 
 ```bash
 cd /vol1/docker/watched-cleaner
-cp config.example.json config.json
-cp downloaders.example.json downloaders.json
+docker compose up -d --build
 ```
 
-这两个文件不在 git 里，之后无论怎么更新代码都不会被覆盖。  
-`downloaders.json` 先留空数组即可，之后你在 WebUI 里增删改下载器会写到这里。
+**不需要 mkdir，也不需要 cp。** 首次启动时程序会自动：
 
-> 如果跳过这一步直接启动，compose 会明确报 `bind source path does not exist: .../config.json`
-> （已用 `create_host_path: false` 防止它偷偷建一个同名目录）。
+1. 在当前目录创建 `config/` 文件夹；
+2. 用 `config.example.json` 生成 `config/config.json`；
+3. 生成空的 `config/downloaders.json`。
 
-### 3.3 编辑 `config.json`（关键！）
+容器日志里会看到：
+
+```
+[config] 已生成默认配置 /app/config/config.json
+[config] 已生成 /app/config/downloaders.json
+```
+
+### 3.3 按需调整 `config/config.json`（可选）
+
+默认配置开箱即用：影视用户名留空时会自动回退到数据库里的第一个管理员用户，
+下载器地址按 `127.0.0.1` 默认端口预填。想更精确就改 `config/config.json`，改完重启容器生效：
+
+```bash
+docker compose restart
+```
 
 ```jsonc
 {
@@ -108,14 +121,7 @@ cp downloaders.example.json downloaders.json
   如果下载器返回的路径前缀与宿主机一致（host 网络直挂），可留空数组 `[]`，匹配会自动回退到目录+文件名。
 - **`web.token`**：建议设一个访问口令（访问网页时要输入），防止局域网内别人乱删。留空则不校验。
 
-### 3.4 启动
-
-```bash
-cd /vol1/docker/watched-cleaner
-docker compose up -d --build
-```
-
-### 3.5 打开使用
+### 3.4 打开使用
 
 浏览器访问 `http://<NAS宿主机IP>:5000`。
 
@@ -126,25 +132,27 @@ docker compose up -d --build
 
 > 首次建议先**不勾选**、仅查看清单核对匹配结果；确认无误后再删除。
 
-### 3.6 更新项目（不会影响已部署的配置）
+### 3.5 更新项目（不会影响已部署的配置）
 
-`config.json` / `downloaders.json` 不在 git 里，更新代码不会动它们：
+`config/` 目录不在 git 里，更新代码不会动它：
 
 ```bash
 cd /vol1/docker/watched-cleaner
 git pull                      # 只更新代码和 .example 模板
-docker compose up -d --build  # 重建镜像；运行时仍挂载你自己的 config.json
+docker compose up -d --build  # 重建镜像；运行时仍挂载你自己的 config/ 目录
 ```
 
-**从旧版本迁移**（旧版本 `config.json` 曾被 git 追踪，pull 时可能被删掉）：
+**从旧版本升级**（旧版本的配置在项目根目录 `config.json` / `downloaders.json`）：
 
 ```bash
-cp config.json config.json.bak      # 1. 先备份
-git pull                            # 2. 拉更新
-cp config.json.bak config.json      # 3. 还原配置
-cp downloaders.example.json downloaders.json   # 4. 仅当 downloaders.json 也没了
-docker compose up -d --build        # 5. 重建
+mkdir -p config
+mv config.json downloaders.json config/ 2>/dev/null   # 把旧配置挪进 config/
+git pull
+docker compose up -d --build
 ```
+
+挪进去之后一切照旧，容器会直接读到旧配置，不需要重新填。  
+（即使漏了这一步，程序启动时也会自动把根目录的 `config.json` 迁移到 `config/` 下。）
 
 ---
 
@@ -176,17 +184,17 @@ docker compose up -d --build        # 5. 重建
 ## 6. 隐私与提交前检查
 
 本仓库不包含任何真实账号、密码、内网 IP 或私有路径。仓库里只有 `config.example.json` /
-`downloaders.example.json` 两个全占位模板，你部署时生成的真实 `config.json` /
-`downloaders.json` 已被 `.gitignore` 排除，不会误提交。
+`downloaders.example.json` 两个全占位模板；你部署时容器自动生成的 `config/` 目录已被
+`.gitignore` 排除，不会误提交。
 
-| 文件                      | 可能包含                                             | 是否进 git                     |
-| ----------------------- | ------------------------------------------------ | --------------------------- |
-| `config.json`           | `fnnas.username`（影视账号）、`web.token`（访问口令）、下载器账号密码 | 否，已被 `.gitignore` 排除         |
-| `downloaders.json`      | 在 WebUI 里填写的下载器地址、账号、密码、qB API 密钥（**明文**）        | 否，已被 `.gitignore` 排除         |
-| `docker-compose.yml`    | 你自己的卷路径、盘符                                       | 是；改成本机私有路径后请自行决定是否提交        |
-| `*.db` / `trimmedia.db` | 完整观影历史                                           | 否，已被 `.gitignore` 排除         |
+| 文件                       | 可能包含                                             | 是否进 git              |
+| ------------------------ | ------------------------------------------------ | -------------------- |
+| `config/config.json`     | `fnnas.username`（影视账号）、`web.token`（访问口令）、下载器账号密码 | 否，整个 `config/` 被排除   |
+| `config/downloaders.json` | 在 WebUI 里填写的下载器地址、账号、密码、qB API 密钥（**明文**）        | 否，整个 `config/` 被排除   |
+| `docker-compose.yml`     | 你自己的卷路径、盘符                                       | 是；改成本机私有路径后请自行决定是否提交 |
+| `*.db` / `trimmedia.db`  | 完整观影历史                                           | 否，已被 `.gitignore` 排除  |
 
-`.gitignore` 已排除 `config.json`、`downloaders.json`、`__pycache__/`、`*.pyc`、`*.db`、`.env`、日志与编辑器目录。
+`.gitignore` 已排除 `config/`、`config.json`、`downloaders.json`、`__pycache__/`、`*.pyc`、`*.db`、`.env`、日志与编辑器目录。
 
 想确认某个文件到底有没有被追踪，用：
 
@@ -209,7 +217,7 @@ grep -rniE '(username|token|pass|password|api_key)"?\s*:\s*"[^"]+"|[0-9]{1,3}(\.
 
 ```bash
 pip install flask requests
-python app.py     # 直接用本地 config.json 启动，浏览器打开 http://127.0.0.1:5000
+python app.py     # 首次运行自动生成 config/config.json，浏览器打开 http://127.0.0.1:5000
 ```
 
 数据库路径不存在时接口会返回明确报错，不影响前端页面调试。

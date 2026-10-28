@@ -27,8 +27,57 @@ import requests
 VIDEO_EXTS = {".mkv", ".mp4", ".ts", ".m2ts", ".avi", ".mov", ".wmv", ".flv", ".rmvb", ".webm"}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 运行期配置目录：docker-compose 把它挂载出来，不在 git 里，
+# 所以 git pull 更新代码、重建镜像都不会覆盖你已部署好的配置。
+CONFIG_DIR = os.path.join(BASE_DIR, "config")
+CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 # WebUI 可写的下载器配置(独立于只读的 config.json)，便于在网页里增删改下载器
-DL_OVERRIDE = os.path.join(BASE_DIR, "downloaders.json")
+DL_OVERRIDE = os.path.join(CONFIG_DIR, "downloaders.json")
+# 仓库自带的模板，首次启动时用它生成上面的真实配置
+EXAMPLE_CONFIG = os.path.join(BASE_DIR, "config.example.json")
+EXAMPLE_DOWNLOADERS = os.path.join(BASE_DIR, "downloaders.example.json")
+
+
+def ensure_config():
+    """首次启动自动准备 config/ 下的配置文件，免去手动 cp。
+
+    - config/ 不存在 -> 创建
+    - config/config.json 不存在 -> 从 config.example.json 复制
+    - config/downloaders.json 不存在 -> 写入 {"downloaders": []}
+    - 兼容旧布局：根目录若还留着 config.json / downloaders.json，自动迁移进来
+
+    返回实际使用的 config.json 路径。
+    """
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+
+    # 旧布局迁移(旧版本把配置放在项目根目录)
+    for old_name, new_path in (
+        ("config.json", CONFIG_PATH),
+        ("downloaders.json", DL_OVERRIDE),
+    ):
+        old_path = os.path.join(BASE_DIR, old_name)
+        if os.path.isfile(old_path) and not os.path.exists(new_path):
+            try:
+                shutil.move(old_path, new_path)
+                print(f"[config] 已把旧配置 {old_name} 迁移到 config/{old_name}")
+            except Exception as e:
+                print(f"[config] 迁移 {old_name} 失败: {e}")
+
+    if not os.path.exists(CONFIG_PATH):
+        if os.path.isfile(EXAMPLE_CONFIG):
+            shutil.copyfile(EXAMPLE_CONFIG, CONFIG_PATH)
+            print(f"[config] 已生成默认配置 {CONFIG_PATH}")
+        else:
+            raise RuntimeError(
+                f"缺少配置文件 {CONFIG_PATH}，且找不到模板 {EXAMPLE_CONFIG}")
+
+    if not os.path.exists(DL_OVERRIDE):
+        with open(DL_OVERRIDE, "w", encoding="utf-8") as f:
+            json.dump({"downloaders": []}, f, ensure_ascii=False, indent=2)
+        print(f"[config] 已生成 {DL_OVERRIDE}")
+
+    return CONFIG_PATH
+
 
 # 规范化种子名 -> 作品身份(主名+季)，用于聚合同作品的不同分辨率/版本
 _SEASON_RE = re.compile(r"\.?S(\d{1,2})(?:\s*E\d{1,3})?\b", re.I)
@@ -83,7 +132,8 @@ def load_downloaders(config):
 
 
 def save_downloaders(dl):
-    """把下载器列表写入 downloaders.json(WebUI 调用)。"""
+    """把下载器列表写入 config/downloaders.json(WebUI 调用)。"""
+    os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(DL_OVERRIDE, "w", encoding="utf-8") as f:
         json.dump({"downloaders": dl}, f, ensure_ascii=False, indent=2)
 

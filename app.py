@@ -22,10 +22,12 @@ import threading
 
 from flask import Flask, request, jsonify, render_template
 
-from cleaner import Cleaner, load_config, save_downloaders
+from cleaner import Cleaner, load_config, save_downloaders, ensure_config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+# 首次启动自动生成 config/config.json（模板来自 config.example.json），
+# 所以部署时不需要手动 cp，更新代码也不会覆盖已有配置。
+CONFIG_PATH = ensure_config()
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
