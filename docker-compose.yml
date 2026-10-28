@@ -1,0 +1,21 @@
+services:
+  watched-cleaner:
+    build: .
+    image: watched-cleaner:latest
+    container_name: watched-cleaner
+    restart: unless-stopped
+    # host 网络：容器与宿主机共享网络，用 127.0.0.1 访问 qB/TR(本机回环免认证)，
+    # WebUI 直接监听宿主机 5000 端口(无需 ports 映射)
+    network_mode: host
+    volumes:
+      # 飞牛影视数据库目录(只读挂载) —— 与 config.json 的 fnnas.db_path 对应
+      - /usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro
+      # 配置文件挂载，改动即生效(需重启容器)
+      - ./config.json:/app/config.json:ro
+      # WebUI 可写的下载器配置(在网页里增删改下载器)。若提示文件不存在，先 touch downloaders.json
+      - ./downloaders.json:/app/downloaders.json
+      # 资源数据盘(以相同路径挂载，供"已看但未做种"直接删除文件)。与 config.json path_map 的 host_root 对应
+      - /vol1/1000:/vol1/1000
+      - /vol2/1000:/vol2/1000
+    environment:
+      - TZ=Asia/Shanghai

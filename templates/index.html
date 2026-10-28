@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>看完即清 · 已看清理</title>
+<style>
+  :root {
+    --bg: #12141a; --panel: #1b1e27; --panel2: #232733;
+    --line: #303545; --fg: #e8eaf0; --muted: #9aa3b2;
+    --green: #34d399; --red: #f87171; --amber: #fbbf24;
+    --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 18px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  .btn { background: var(--blue); color: #fff; border: 0; border-radius: 8px;
+         padding: 9px 16px; font-size: 14px; cursor: pointer; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.danger { background: var(--red); }
+  .btn.ghost { background: var(--panel2); border: 1px solid var(--line); color: var(--fg); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px;
+           font-size: 12px; margin-left: 4px; }
+  .badge.green { background: rgba(52,211,153,.15); color: var(--green); }
+  .badge.amber { background: rgba(251,191,36,.15); color: var(--amber); }
+  .badge.red { background: rgba(248,113,113,.15); color: var(--red); }
+  .stat { display: inline-flex; align-items: baseline; gap: 6px; margin-right: 18px; }
+  .stat b { font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .cb { width: 34px; }
+  .name { font-weight: 600; }
+  .small { color: var(--muted); font-size: 12px; }
+  .tag { display: inline-block; background: var(--panel2); border: 1px solid var(--line);
+         border-radius: 5px; padding: 1px 6px; font-size: 11px; margin: 1px 2px 1px 0; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 0; }
+  .err { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+         color: var(--red); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+  #banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+            background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+            padding: 12px 18px; display: none; z-index: 99; font-size: 14px;
+            box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.55);
+                display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+           padding: 22px; width: 90%; max-width: 460px; }
+  .modal h3 { margin: 0 0 10px; }
+  .modal p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; }
+  .progress-holder { text-align: center; color: var(--muted); padding: 40px 0; }
+  .spin { display: inline-block; width: 26px; height: 26px; border: 3px solid var(--line);
+          border-top-color: var(--blue); border-radius: 50%; animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>看完即清 · 飞牛影视已看清理</h1>
+  <div class="sub">自动读取飞牛影视「已看完」的记录，匹配到下载器中的种子。勾选确认删除种子 + 本地数据文件（停止全部站点保种）。</div>
+
+  <div id="loginBox" class="card" style="display:none">
+    <div class="row">
+      <span>访问口令：</span>
+      <input id="tokenInput" type="password" style="padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);width:220px">
+      <button class="btn" onclick="saveToken()">保存</button>
+    </div>
+  </div>
+
+  <div id="errBox" class="err" style="display:none"></div>
+
+  <div class="card" id="statusCard" style="display:none">
+    <div class="row">
+      <span class="stat">已看 <b id="sWatched">0</b> 条</span>
+      <span class="stat">候选 <b id="sWork">0</b> 项</span>
+      <span class="stat">占用 <b id="sSize">0</b></span>
+      <span class="spacer"></span>
+      <span class="badge green" id="sFull">已看命中</span>
+      <span class="badge amber" id="sPart">部分命中</span>
+      <button class="btn ghost" onclick="openSettings()">下载器设置</button>
+      <button class="btn ghost" onclick="load(true)">刷新</button>
+    </div>
+  </div>
+
+  <div class="card" id="listCard" style="display:none">
+    <div class="row" style="margin-bottom:12px">
+      <b>候选清单</b>
+      <span class="small">只列出「你已看过其中的文件」的种子；勾选后删除整个种子任务及本地文件。</span>
+      <span class="spacer"></span>
+      <select id="dlFilter" onchange="render()" style="padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)">
+        <option value="">全部下载器</option>
+      </select>
+      <label class="small"><input type="checkbox" id="onlyFull" checked onchange="render()"> 只看已全部看完</label>
+    </div>
+    <div id="unmatchedBox" style="display:none;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px">
+      <div class="small" style="font-weight:600">已看但未在已配置下载器做种（无种子可删，仅提示）<span id="unmatchedCount"></span></div>
+      <div id="unmatchedList" style="margin-top:8px"></div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th class="cb"><input type="checkbox" id="checkAll" onchange="toggleAll(this)"></th>
+            <th>种子 / 作品</th>
+            <th>下载器</th>
+            <th>大小</th>
+            <th>已看进度</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn danger" id="delBtn" disabled onclick="confirmDel()">删除选中（含本地文件）</button>
+      <span class="small" id="selInfo"></span>
+    </div>
+  </div>
+
+  <div id="loading" class="progress-holder"><div class="spin"></div><div style="margin-top:10px">正在读取飞牛影视已看并匹配下载器…</div></div>
+  <div id="emptyBox" class="card empty" style="display:none">没有匹配到「已看且仍在下载器保种」的种子。</div>
+</div>
+
+<div id="banner"></div>
+
+<div class="modal-mask" id="dlMask" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <h3>下载器设置</h3>
+    <p class="small" id="dlHint"></p>
+    <div id="dlList"></div>
+    <div style="margin-top:8px">
+      <button class="btn ghost" onclick="addDl()">+ 新增下载器</button>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" onclick="saveDl()">保存并重连</button>
+      <button class="btn ghost" onclick="closeDl()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+let TOKEN = localStorage.getItem('wc_token') || '';
+function showBanner(msg, isErr) {
+  const b = document.getElementById('banner');
+  b.textContent = msg;
+  b.style.borderColor = isErr ? 'rgba(248,113,113,.5)' : 'var(--line)';
+  b.style.display = 'block';
+  setTimeout(()=>{ b.style.display='none'; }, 3200);
+}
+function api(path, opts={}) {
+  opts.headers = Object.assign({}, opts.headers || {}, TOKEN ? {'X-Token': TOKEN} : {});
+  return fetch(path, opts).then(async r => {
+    if (r.status === 401) { showLogin(); throw new Error('unauthorized'); }
+    const j = await r.json().catch(()=>({ok:false,error:r.status}));
+    if (!j.ok) throw new Error(j.error || '请求失败');
+    return j;
+  });
+}
+function showLogin() { document.getElementById('loginBox').style.display='block'; }
+function saveToken() {
+  TOKEN = document.getElementById('tokenInput').value.trim();
+  localStorage.setItem('wc_token', TOKEN);
+  document.getElementById('loginBox').style.display='none';
+  load();
+}
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtSizeText(b){ return b; } // 后端已带 size_text
+
+function load(refreshStatus) {
+  document.getElementById('loading').style.display='block';
+  document.getElementById('listCard').style.display='none';
+  document.getElementById('emptyBox').style.display='none';
+  document.getElementById('errBox').style.display='none';
+  api('/api/watched').then(j => {
+    DATA = j;
+    document.getElementById('loading').style.display='none';
+    document.getElementById('statusCard').style.display='block';
+    document.getElementById('sWatched').textContent = j.watched_count;
+    document.getElementById('sWork').textContent = j.work_count;
+    document.getElementById('sSize').textContent = j.total_size_text;
+    const full = j.works.filter(w=>w.all_watched).length;
+    const part = j.works.length - full;
+    document.getElementById('sFull').textContent = `全部看完 ${full}`;
+    document.getElementById('sPart').textContent = `部分 ${part}`;
+    if (!j.works || !j.works.length) {
+      document.getElementById('emptyBox').style.display='block';
+      document.getElementById('listCard').style.display='none';
+    } else {
+      document.getElementById('listCard').style.display='block';
+      fillDlFilter();
+      render();
+    }
+  }).catch(e => {
+    document.getElementById('loading').style.display='none';
+    const box = document.getElementById('errBox');
+    box.style.display='block';
+    box.textContent = '加载失败：' + e.message;
+  });
+  if (refreshStatus) {
+    api('/api/status').then(j=>{}).catch(()=>{});
+  }
+}
+function render() {
+  const ub = document.getElementById('unmatchedBox');
+  const um = DATA.unmatched || [];
+  if (um.length) {
+    ub.style.display = '';
+    document.getElementById('unmatchedCount').textContent = '（' + um.length + ' 个作品）';
+    document.getElementById('unmatchedList').innerHTML = um.map(e=>{
+      const _f = encodeURIComponent(JSON.stringify(e.files||[]));
+      const _d = encodeURIComponent(e.dir);
+      return '<div class="small" style="margin-top:3px;display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
+      '<span style="color:var(--amber)">●</span> ' +
+      '<span style="word-break:break-all">' + esc(e.dir) + '</span>' +
+      '<span style="color:var(--dim)">｜' + e.count + ' 个文件已看</span>' +
+      '<span class="row" style="margin-left:auto;gap:6px">' +
+      '<button class="btn danger" style="padding:4px 10px" data-files="' + _f + '" onclick="delFiles(this)">删已看文件</button>' +
+      '<button class="btn" style="padding:4px 10px" data-dir="' + _d + '" onclick="delDir(this)">删整个目录</button>' +
+      '</span>' +
+      '</div>';
+    }).join('');
+  } else {
+    ub.style.display = 'none';
+  }
+  const onlyFull = document.getElementById('onlyFull').checked;
+  const dlm = document.getElementById('dlFilter').value;
+  const list = DATA.works.filter(w =>
+    (!dlm || w.downloader === dlm) && (!onlyFull || w.all_watched));
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  list.forEach(w => {
+    const tr = document.createElement('tr');
+    const status = w.all_watched
+      ? '<span class="badge green">已全部看完</span>'
+      : '<span class="badge amber">部分看完</span>';
+    const files = (w.watched_titles||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+    const sites = (w.trackers||[]).map(t=>`<span class="tag" style="color:var(--blue)">${esc(t)}</span>`).join('');
+    const dls = (w.all_downloaders||[w.downloader]).join(' + ');
+    const dirs = (w.dirs||[w.dir]).join(' / ');
+    const refsJson = JSON.stringify(w.refs||[]).replace(/"/g,'&quot;');
+    const sibHtml = (w.siblings||[]).map(s=>{
+      const sr = JSON.stringify(s.refs||[]).replace(/"/g,'&quot;');
+      return `<label class="small" style="display:block;margin-top:3px;cursor:pointer">
+        <span style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" class="scb" data-refs="${sr}" onchange="syncSel()">
+          <span style="word-break:break-all">${esc(s.name)}</span>
+          <span style="color:var(--dim);white-space:nowrap">${esc(s.size_text)}</span>
+          ${s.all_watched?'<span class="badge green">已看完</span>':''}
+        </span>
+        <span class="small" style="color:var(--blue);margin-left:24px">${(s.downloaders||[]).join(' + ')}</span>
+        <span class="small" style="color:var(--dim);margin-left:8px">${(s.dirs||[]).join(' / ')}</span>
+        <span class="small" style="color:var(--dim);margin-left:8px">${(s.trackers||[]).join(', ')}</span>
+      </label>`;
+    }).join('');
+    tr.innerHTML =
+      `<td class="cb"><input type="checkbox" class="wcb" data-refs="${refsJson}" onchange="syncSel()"></td>` +
+      `<td><div class="name">${esc(w.name)}</div><div class="small">${esc(dirs)}</div>` +
+        `<div style="margin-top:4px">${files}</div>` +
+        `<div style="margin-top:4px">${sites || '<span class="small">(无 tracker 信息)</span>'}</div>` +
+        `<div style="margin-top:6px;border-top:1px dashed var(--line);padding-top:5px">
+           <div class="small" style="color:var(--dim)">同作品其他版本（可勾选一并删除）</div>
+           ${sibHtml || '<span class="small" style="color:var(--dim)">无</span>'}
+         </div></td>` +
+      `<td><span class="badge ${(w.all_downloaders||[''])[0]==='qbittorrent'?'green':'blue'}">${esc(dls)}</span></td>` +
+      `<td>${esc(w.size_text)}</td>` +
+      `<td>
+        <div class="small">${w.matched_count}/${w.total_video} 集已看</div>
+        <div class="bar" style="width:80px"><i style="width:${Math.round(w.matched_count/Math.max(w.total_video,1)*100)}%"></i></div>
+      </td>` +
+      `<td>${status}</td>`;
+    tbody.appendChild(tr);
+  });
+  const _boxes = Array.from(document.querySelectorAll('.wcb'));
+  document.getElementById('checkAll').checked = _boxes.length>0 && _boxes.every(b=>b.checked);
+  syncSel();
+}
+function fillDlFilter(){
+  const sel = document.getElementById('dlFilter');
+  const cur = sel.value;
+  const kinds = [];
+  DATA.works.forEach(w=>{ if(kinds.indexOf(w.downloader)<0) kinds.push(w.downloader); });
+  sel.innerHTML = '<option value="">全部下载器</option>'
+    + kinds.map(k=>`<option value="${esc(k)}" ${k===cur?'selected':''}>${esc(k)}</option>`).join('');
+}
+function toggleAll(cb){
+  document.querySelectorAll('.wcb').forEach(c=>c.checked = cb.checked);
+  syncSel();
+}
+function syncSel(){
+  const n = document.querySelectorAll('.wcb:checked').length + document.querySelectorAll('.scb:checked').length;
+  const btn = document.getElementById('delBtn');
+  btn.disabled = n===0;
+  document.getElementById('selInfo').textContent = n? `已选 ${n} 个种子` : '';
+}
+function delFiles(btn){
+  let files=[]; try{ files=JSON.parse(decodeURIComponent(btn.dataset.files)); }catch(e){}
+  const mask = document.createElement('div');
+  mask.className='modal-mask';
+  mask.innerHTML = `
+    <div class="modal">
+      <h3>删除 ${files.length} 个已看文件？</h3>
+      <p class="small" style="color:var(--amber)"><b>只删这些已看文件本身</b>，不删所在目录，不影响同目录其他资源。不可恢复。</p>
+      <p class="small" style="word-break:break-all;opacity:.7">${files.map(esc).join('<br>')}</p>
+      <div class="row" style="margin-top:16px">
+        <button class="btn danger" id="dfOk">确认删除文件</button>
+        <button class="btn ghost" id="dfCancel">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  mask.querySelector('#dfCancel').onclick = ()=>mask.remove();
+  mask.querySelector('#dfOk').onclick = ()=>{
+    mask.querySelector('#dfOk').disabled=true;
+    api('/api/delete_unmatched', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({files})})
+      .then(j=>{ mask.remove(); showBanner(j.message || '已提交删除'); })
+      .catch(e=>{ mask.querySelector('#dfOk').disabled=false; showBanner('删除失败：'+e.message, true); });
+  };
+}
+function delDir(btn){
+  const dir = decodeURIComponent(btn.dataset.dir);
+  const mask = document.createElement('div');
+  mask.className='modal-mask';
+  mask.innerHTML = `
+    <div class="modal">
+      <h3>删除整个目录？</h3>
+      <p style="word-break:break-all">${esc(dir)}</p>
+      <p class="small" style="color:var(--red)"><b>危险：将删除此目录下所有文件</b>。若该目录下还有<b>未看</b>的其他资源，会一起被删，不可恢复！请确认该目录确为单一作品、没有其他内容。</p>
+      <div class="row" style="margin-top:16px">
+        <button class="btn danger" id="ddOk">确认删除整个目录</button>
+        <button class="btn ghost" id="ddCancel">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  mask.querySelector('#ddCancel').onclick = ()=>mask.remove();
+  mask.querySelector('#ddOk').onclick = ()=>{
+    mask.querySelector('#ddOk').disabled=true;
+    api('/api/delete_unmatched_dir', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({dirs:[dir]})})
+      .then(j=>{ mask.remove(); showBanner(j.message || '已提交删除'); })
+      .catch(e=>{ mask.querySelector('#ddOk').disabled=false; showBanner('删除失败：'+e.message, true); });
+  };
+}
+function confirmDel(){
+  const sel = [];
+  Array.from(document.querySelectorAll('.wcb:checked, .scb:checked')).forEach(c=>{
+    try{ sel.push(...JSON.parse(c.dataset.refs)); }catch(e){}
+  });
+  if(!sel.length) return;
+  const mask = document.createElement('div');
+  mask.className='modal-mask';
+  mask.innerHTML = `
+    <div class="modal">
+      <h3>确认删除 ${sel.length} 个种子？</h3>
+      <p>将<b>删除种子任务并删除本地数据文件</b>（含文件），同时停止这些种子在全部站点的保种。飞牛影视中对应条目也会随之消失。此操作不可恢复。</p>
+      <div class="row" style="margin-top:16px">
+        <button class="btn danger" id="mOk">确认删除</button>
+        <button class="btn ghost" id="mCancel">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  mask.querySelector('#mCancel').onclick = ()=>mask.remove();
+  mask.querySelector('#mOk').onclick = ()=>{
+    mask.querySelector('#mOk').disabled=true;
+    api('/api/delete', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({refs: sel})})
+      .then(j=>{ mask.remove(); showBanner(j.message || '已提交删除，请在几秒后点「刷新」确认'); })
+      .catch(e=>{ mask.querySelector('#mOk').disabled=false; showBanner('删除失败：'+e.message, true); });
+  };
+}
+// ---- 下载器设置(WebUI 自定义选择) ----
+let DLS = [];
+function openSettings(){
+  api('/api/downloaders').then(j=>{
+    DLS = j.downloaders.map(d=>Object.assign({enabled:true,type:'qbittorrent',url:'',user:'',pass:'',api_key:''}, d));
+    renderDl();
+    document.getElementById('dlMask').style.display='flex';
+  }).catch(e=>showBanner('读取下载器失败：'+e.message, true));
+}
+function closeDl(){ document.getElementById('dlMask').style.display='none'; }
+function renderDl(){
+  const box = document.getElementById('dlList');
+  box.innerHTML='';
+  DLS.forEach((d,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px';
+    row.innerHTML=
+      `<label class="small"><input type="checkbox" data-f="enabled" ${d.enabled?'checked':''}>启用</label>`+
+      `<select data-f="type" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg)">`+
+        `<option value="transmission" ${d.type==='transmission'?'selected':''}>Transmission</option>`+
+        `<option value="qbittorrent" ${d.type==='qbittorrent'?'selected':''}>qBittorrent</option>`+
+      `</select>`+
+      `<input data-f="url" placeholder="http://IP:端口" value="${esc(d.url||'')}" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:190px">`+
+      `<input data-f="user" placeholder="账号" value="${esc(d.user||'')}" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:90px">`+
+      `<input data-f="pass" type="password" placeholder="密码" value="${esc(d.pass||'')}" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:110px">`+
+      `<input data-f="api_key" type="password" placeholder="API密钥(qB可选)" value="${esc(d.api_key||'')}" style="padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:150px">`+
+      `<button class="btn ghost" style="padding:6px 10px" onclick="removeDl(${i})">删</button>`;
+    row.querySelectorAll('[data-f]').forEach(el=>{
+      el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{
+        const f=el.dataset.f;
+        if(f==='enabled') d.enabled=el.checked; else d[f]=el.value;
+      });
+    });
+    box.appendChild(row);
+  });
+  const n=DLS.filter(d=>d.enabled).length;
+  document.getElementById('dlHint').textContent = `已启用 ${n}/${DLS.length} 个下载器；保存后自动重连，无需重启容器。`;
+}
+function addDl(){ DLS.push({enabled:true,type:'qbittorrent',url:'',user:'',pass:'',api_key:''}); renderDl(); }
+function removeDl(i){ DLS.splice(i,1); renderDl(); }
+function saveDl(){
+  api('/api/downloaders',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({downloaders: DLS})})
+    .then(j=>{ closeDl(); showBanner('下载器已保存并重连'); load(true); })
+    .catch(e=>showBanner('保存失败：'+e.message, true));
+}
+
+load();  // 先尝试请求：后端未设口令则直接通过；设了口令则 401 自动弹登录框
+
+</script>
+</body>
+</html>
