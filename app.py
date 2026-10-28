@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app.py —— 看完即清 WebUI v2 后端 (Flask)
-=========================================
+app.py —— 看完即清 WebUI 后端 (Flask)
+=====================================
 启动：python3 app.py   (默认 http://0.0.0.0:5000)
 提供：
   GET  /                前端页面
@@ -187,7 +187,7 @@ def downloaders_api():
 if __name__ == "__main__":
     host = _config.get("web", {}).get("host", "0.0.0.0")
     port = _config.get("web", {}).get("port", 5000)
-    print(f"看完即清 WebUI v2 已启动: http://{host}:{port}")
+    print(f"看完即清 WebUI 已启动: http://{host}:{port}")
     if TOKEN:
         print("已启用访问口令保护。")
     app.run(host=host, port=port, debug=False)

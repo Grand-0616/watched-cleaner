@@ -1,4 +1,4 @@
-# 看完即清 v2 —— 容器镜像
+# 看完即清 —— 容器镜像
 FROM python:3.12-slim
 
 WORKDIR /app
