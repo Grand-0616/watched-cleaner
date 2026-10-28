@@ -1,4 +1,4 @@
-# 看完即清 v2 · 飞牛影视已看自动清理（WebUI + Docker）
+# 看完即清 · 飞牛影视已看自动清理（WebUI + Docker）
 
 读取飞牛影视（fnOS / Jellyfin 内核）的「已看完」记录，在 Transmission / qBittorrent 里匹配到对应种子，
 打开网页勾选就能删除——不用手动输关键词，避免误删其它做种。
@@ -27,11 +27,10 @@ watched-cleaner/
 ├── cleaner.py              核心：已看读取 + 下载器客户端 + 路径匹配
 ├── templates/index.html    WebUI 前端
 ├── config/                 运行期配置（挂载进容器，不在 git 里）
-│   ├── config.json         首次启动自动生成
+│   ├── config.json         首次启动自动生成，账号填这里
 │   └── downloaders.json    首次启动自动生成，WebUI 改下载器写这里
 ├── Dockerfile
 ├── docker-compose.yml
-├── .env                    你自己建，存飞牛账号（不在 git 里）
 ├── requirements.txt
 └── README.md
 ```
@@ -46,17 +45,7 @@ git clone https://github.com/Grand-0616/watched-cleaner.git
 cd watched-cleaner
 ```
 
-### 2. 填飞牛影视账号
-
-在项目目录建一个 `.env` 文件（已被 `.gitignore` 排除，更新项目不会覆盖）：
-
-```bash
-echo "FNNAS_USERNAME=你的飞牛影视用户名" > .env
-```
-
-留空也能跑：程序会自动使用数据库里的第一个管理员用户。
-
-### 3. 启动
+### 2. 启动
 
 ```bash
 docker compose up -d --build
@@ -69,6 +58,16 @@ docker compose up -d --build
 ```
 
 不需要手动建目录或复制文件。
+
+### 3. 填飞牛影视账号
+
+编辑 `config/config.json` 的 `fnnas.username`，然后重启容器：
+
+```bash
+docker compose restart
+```
+
+留空也能跑：程序会自动使用数据库里的第一个管理员用户。
 
 ### 4. 打开使用
 
@@ -86,38 +85,69 @@ git pull && docker compose up -d --build
 
 `config/` 不在 git 里，更新不会影响你已有的配置。
 
-## 配置说明
+## docker-compose.yml 说明
 
-绝大多数情况只需填 `FNNAS_USERNAME`。其它可选项：
-
-| 位置 | 项 | 说明 |
-|---|---|---|
-| `.env` | `FNNAS_USERNAME` | 飞牛影视登录账号，留空则用第一个管理员 |
-| `.env` | `WEB_PORT` | WebUI 端口，默认 5000 |
-| `.env` | `WEB_TOKEN` | 访问口令，设了就要在网页里输入 |
-| `.env` | `FNNAS_DB_PATH` | 数据库路径，容器内固定 `/fnnas-db/trimmedia.db` |
-| `config/config.json` | `fnnas.path_map` | 宿主机资源根 → 下载器容器内根，可写多条 |
-
-`path_map` 示例（宿主机 `/vol1/1000/12T` 在下载器里是 `/downloads`）：
-
-```json
-"path_map": [
-  { "host_root": "/vol1/1000/12T", "container_root": "/downloads" },
-  { "host_root": "/vol2/1000/4T",  "container_root": "/datas" }
-]
+```yaml
+services:
+  watched-cleaner:
+    build: .
+    image: watched-cleaner:latest
+    container_name: watched-cleaner
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      # 飞牛影视数据库目录(只读)
+      - /usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro
+      # 配置目录
+      - ./config:/app/config
+      # 资源数据盘(与宿主机相同路径)
+      - /vol1/1000:/vol1/1000
+      - /vol2/1000:/vol2/1000
+    environment:
+      - TZ=Asia/Shanghai
 ```
 
-**下载器不用改文件**：启动后点页面右上「下载器设置」，在网页里添加/编辑/启用/删除
-Transmission 或 qBittorrent，保存后自动重连，不用重启容器。设置写在 `config/downloaders.json`。
+| 项 | 作用 | 什么时候要改 |
+|---|---|---|
+| `network_mode: host` | 容器与宿主机共享网络，WebUI 直接监听宿主机端口，下载器可用 `127.0.0.1` 访问 | 一般不用改 |
+| `/usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro` | 只读挂载飞牛影视数据库 | 数据库不在这个路径时改左边（`find / -name trimmedia.db` 确认） |
+| `./config:/app/config` | 挂载配置目录，配置存在宿主机上 | 一般不用改 |
+| `/vol1/1000:/vol1/1000`<br>`/vol2/1000:/vol2/1000` | 资源盘按原路径挂进容器，用于「已看但未做种」时直接删文件 | 你的资源盘不是这两个路径时，按实际路径增删 |
+| `TZ=Asia/Shanghai` | 容器时区 | 一般不用改 |
+
+> 容器名冲突时改 `container_name`；端口冲突时改 `config/config.json` 里的 `web.port`。
+
+## 配置说明（config/config.json）
+
+首次启动生成的默认配置：
+
+```jsonc
+{
+  "fnnas": {
+    "db_path": "/fnnas-db/trimmedia.db",   // 容器内路径，一般不用改
+    "username": "",                        // 飞牛影视登录账号，留空则用第一个管理员
+    "path_map": [                          // 宿主机资源根 → 下载器容器内根
+      { "host_root": "/vol1/1000/12T", "container_root": "/downloads" }
+    ]
+  },
+  "downloaders": [
+    { "type": "transmission", "url": "http://127.0.0.1:9091", "user": "", "pass": "" },
+    { "type": "qbittorrent",  "url": "http://127.0.0.1:8090", "user": "", "pass": "" }
+  ],
+  "web": { "host": "0.0.0.0", "port": 5000, "token": "" }
+}
+```
+
+- **`path_map`**：可写多条。宿主机 `/vol1/1000/12T` 在下载器里是 `/downloads`，
+  `/vol2/1000/4T` 是 `/datas`，就写两条。路径前缀一致时可留空数组 `[]`。
+- **`web.token`**：访问口令，设了就要在网页里输入；留空不校验。
+- **下载器不用改文件**：启动后点页面右上「下载器设置」，在网页里添加/编辑/启用/删除
+  Transmission 或 qBittorrent，保存后自动重连，不用重启容器。设置写在 `config/downloaders.json`。
 
 > 本部署用 `network_mode: host`，下载器地址填 `http://127.0.0.1:端口` 即可命中
 > qB 的 localhost 免认证，账号密码留空。
 
 ## 数据库挂载
-
-```yaml
-- /usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro
-```
 
 - 容器内 `fnnas.db_path` 固定为 `/fnnas-db/trimmedia.db`。
 - **只读挂载**，工具绝不写数据库，只查询 `watched=1`。
