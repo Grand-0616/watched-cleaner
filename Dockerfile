@@ -7,9 +7,11 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 拷贝代码与配置
+# 拷贝代码
 COPY app.py cleaner.py ./
-COPY config.json ./
+# 只拷贝模板作为兜底：正常运行时 docker-compose 会把宿主机上你自己的
+# config.json 挂载到 /app/config.json 覆盖掉它，所以重建镜像不会动你的配置。
+COPY config.example.json ./config.json
 COPY templates ./templates
 
 EXPOSE 5000

@@ -10,10 +10,27 @@ services:
     volumes:
       # 飞牛影视数据库目录(只读挂载) —— 与 config.json 的 fnnas.db_path 对应
       - /usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro
-      # 配置文件挂载，改动即生效(需重启容器)
-      - ./config.json:/app/config.json:ro
-      # WebUI 可写的下载器配置(在网页里增删改下载器)。若提示文件不存在，先 touch downloaders.json
-      - ./downloaders.json:/app/downloaders.json
+
+      # 配置文件：挂载宿主机上的 ./config.json，它不在 git 里，
+      # 所以 git pull 更新代码、重新 build 镜像都不会覆盖你已填好的配置。
+      # create_host_path: false 表示文件不存在时直接报错，
+      # 而不是偷偷建一个同名目录(否则容器会因 "is a directory" 启动失败)。
+      # 首次部署请先执行：cp config.example.json config.json
+      - type: bind
+        source: ./config.json
+        target: /app/config.json
+        read_only: true
+        bind:
+          create_host_path: false
+
+      # WebUI 可写的下载器配置(在网页里增删改下载器)，同样不进 git。
+      # 首次部署请先执行：cp downloaders.example.json downloaders.json
+      - type: bind
+        source: ./downloaders.json
+        target: /app/downloaders.json
+        bind:
+          create_host_path: false
+
       # 资源数据盘(以相同路径挂载，供"已看但未做种"直接删除文件)。与 config.json path_map 的 host_root 对应
       - /vol1/1000:/vol1/1000
       - /vol2/1000:/vol2/1000

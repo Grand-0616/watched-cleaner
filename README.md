@@ -36,14 +36,18 @@ watched-cleaner/
 ├── app.py                  Flask 后端（/api/watched 已看清单、/api/downloaders 下载器管理）
 ├── cleaner.py              核心：飞牛影视已看读取 + 下载器客户端 + 文件路径匹配
 ├── templates/index.html    WebUI 前端（自动加载清单、勾选删除、下载器设置）
-├── config.json             配置模板（fnnas 数据库/用户/路径映射 + 默认下载器地址）
-├── downloaders.json        下载器配置(WebUI 可写，优先于 config.json)
+├── config.example.json     配置模板（fnnas 数据库/用户/路径映射 + 默认下载器地址）
+├── downloaders.example.json 下载器配置模板（WebUI 可写，优先于 config.json）
 ├── Dockerfile
 ├── docker-compose.yml      （含飞牛影视数据库只读挂载 + downloaders.json 可写挂载）
 ├── requirements.txt
 ├── .gitignore
 └── README.md               本文件
 ```
+
+> `config.json` 和 `downloaders.json` **不在仓库里**，由你在 NAS 上从 `.example.json` 复制生成，
+> 已被 `.gitignore` 排除。这样做的好处是：`git pull` 更新代码、重新 `docker compose build`
+> 都不会覆盖你已填好的账号、口令和下载器设置。
 
 ---
 
@@ -53,13 +57,23 @@ watched-cleaner/
 
 把 `watched_cleaner_webui_v2/` 整个目录放到 NAS 的一个目录（例如 `/vol1/docker/watched-cleaner`）。
 
-### 3.2 首次：确认 `downloaders.json`
+### 3.2 生成你自己的配置文件（首次必做）
 
-目录里已带一个空 `downloaders.json`（`{"downloaders": []}`）。为空时工具自动使用 `config.json`  
-里的默认下载器；之后你在 WebUI 里增删改下载器会写到这个文件。  
-若 docker compose 启动报「downloaders.json 不存在」，先在该目录执行 `touch downloaders.json`。
+仓库里只有模板，先把它们复制成实际配置：
 
-### 3.2 编辑 `config.json`（关键！）
+```bash
+cd /vol1/docker/watched-cleaner
+cp config.example.json config.json
+cp downloaders.example.json downloaders.json
+```
+
+这两个文件不在 git 里，之后无论怎么更新代码都不会被覆盖。  
+`downloaders.json` 先留空数组即可，之后你在 WebUI 里增删改下载器会写到这里。
+
+> 如果跳过这一步直接启动，compose 会明确报 `bind source path does not exist: .../config.json`
+> （已用 `create_host_path: false` 防止它偷偷建一个同名目录）。
+
+### 3.3 编辑 `config.json`（关键！）
 
 ```jsonc
 {
@@ -94,14 +108,14 @@ watched-cleaner/
   如果下载器返回的路径前缀与宿主机一致（host 网络直挂），可留空数组 `[]`，匹配会自动回退到目录+文件名。
 - **`web.token`**：建议设一个访问口令（访问网页时要输入），防止局域网内别人乱删。留空则不校验。
 
-### 3.3 启动
+### 3.4 启动
 
 ```bash
 cd /vol1/docker/watched-cleaner
 docker compose up -d --build
 ```
 
-### 3.4 打开使用
+### 3.5 打开使用
 
 浏览器访问 `http://<NAS宿主机IP>:5000`。
 
@@ -111,6 +125,26 @@ docker compose up -d --build
 - 建议删除后到各 PT 站确认种子已停止做种（一份数据多站保种，删除即全部停止）。
 
 > 首次建议先**不勾选**、仅查看清单核对匹配结果；确认无误后再删除。
+
+### 3.6 更新项目（不会影响已部署的配置）
+
+`config.json` / `downloaders.json` 不在 git 里，更新代码不会动它们：
+
+```bash
+cd /vol1/docker/watched-cleaner
+git pull                      # 只更新代码和 .example 模板
+docker compose up -d --build  # 重建镜像；运行时仍挂载你自己的 config.json
+```
+
+**从旧版本迁移**（旧版本 `config.json` 曾被 git 追踪，pull 时可能被删掉）：
+
+```bash
+cp config.json config.json.bak      # 1. 先备份
+git pull                            # 2. 拉更新
+cp config.json.bak config.json      # 3. 还原配置
+cp downloaders.example.json downloaders.json   # 4. 仅当 downloaders.json 也没了
+docker compose up -d --build        # 5. 重建
+```
 
 ---
 
@@ -141,17 +175,24 @@ docker compose up -d --build
 
 ## 6. 隐私与提交前检查
 
-本仓库不包含任何真实账号、密码、内网 IP 或私有路径，`config.json` 是可提交的配置模板。  
-在你把它部署到自己的环境后，下列文件会**开始包含私有信息**，提交到 Git 前请逐项确认：
+本仓库不包含任何真实账号、密码、内网 IP 或私有路径。仓库里只有 `config.example.json` /
+`downloaders.example.json` 两个全占位模板，你部署时生成的真实 `config.json` /
+`downloaders.json` 已被 `.gitignore` 排除，不会误提交。
 
-| 文件                      | 可能包含                                             | 处理方式                         |
-| ----------------------- | ------------------------------------------------ | ---------------------------- |
-| `config.json`           | `fnnas.username`（影视账号）、`web.token`（访问口令）、下载器账号密码 | 只提交占位版本；本地改动不要提交             |
-| `downloaders.json`      | 在 WebUI 里填写的下载器地址、账号、密码、qB API 密钥（**明文**）        | 提交前恢复为 `{"downloaders": []}` |
-| `docker-compose.yml`    | 你自己的卷路径、盘符                                       | 改成本机路径后建议不提交，或保留通用示例         |
-| `*.db` / `trimmedia.db` | 完整观影历史                                           | 已被 `.gitignore` 排除           |
+| 文件                      | 可能包含                                             | 是否进 git                     |
+| ----------------------- | ------------------------------------------------ | --------------------------- |
+| `config.json`           | `fnnas.username`（影视账号）、`web.token`（访问口令）、下载器账号密码 | 否，已被 `.gitignore` 排除         |
+| `downloaders.json`      | 在 WebUI 里填写的下载器地址、账号、密码、qB API 密钥（**明文**）        | 否，已被 `.gitignore` 排除         |
+| `docker-compose.yml`    | 你自己的卷路径、盘符                                       | 是；改成本机私有路径后请自行决定是否提交        |
+| `*.db` / `trimmedia.db` | 完整观影历史                                           | 否，已被 `.gitignore` 排除         |
 
-`.gitignore` 已排除 `__pycache__/`、`*.pyc`、`*.db`、`.env`、日志与编辑器目录。
+`.gitignore` 已排除 `config.json`、`downloaders.json`、`__pycache__/`、`*.pyc`、`*.db`、`.env`、日志与编辑器目录。
+
+想确认某个文件到底有没有被追踪，用：
+
+```bash
+git ls-files | grep -E 'config|downloaders'   # 只应出现 *.example.json
+```
 
 自查命令（在项目根目录执行）：
 
