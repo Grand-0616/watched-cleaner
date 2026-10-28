@@ -21,8 +21,8 @@ services:
       - /vol2/1000:/vol2/1000
     environment:
       - TZ=Asia/Shanghai
-      # 飞牛影视登录账号：填在这里就不用再改 config.json。
-      # 留空则自动使用数据库里的第一个管理员用户。
-      - FNNAS_USERNAME=
+      # 飞牛影视登录账号：写在同目录的 .env 文件里（FNNAS_USERNAME=xxx），
+      # 不写也能跑，会自动使用数据库里的第一个管理员用户。
+      - FNNAS_USERNAME=${FNNAS_USERNAME:-}
       # WebUI 端口，默认 5000。想改端口也可以直接改 config/config.json。
       # - WEB_PORT=5000

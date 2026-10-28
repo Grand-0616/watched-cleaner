@@ -31,6 +31,7 @@ watched-cleaner/
 │   └── downloaders.json    首次启动自动生成，WebUI 改下载器写这里
 ├── Dockerfile
 ├── docker-compose.yml
+├── .env                    你自己建，存飞牛账号（不在 git 里）
 ├── requirements.txt
 └── README.md
 ```
@@ -47,12 +48,10 @@ cd watched-cleaner
 
 ### 2. 填飞牛影视账号
 
-编辑 `docker-compose.yml`，把账号填进环境变量（只需填这一次）：
+在项目目录建一个 `.env` 文件（已被 `.gitignore` 排除，更新项目不会覆盖）：
 
-```yaml
-    environment:
-      - TZ=Asia/Shanghai
-      - FNNAS_USERNAME=你的飞牛影视用户名
+```bash
+echo "FNNAS_USERNAME=你的飞牛影视用户名" > .env
 ```
 
 留空也能跑：程序会自动使用数据库里的第一个管理员用户。
@@ -93,12 +92,11 @@ git pull && docker compose up -d --build
 
 | 位置 | 项 | 说明 |
 |---|---|---|
-| 环境变量 | `FNNAS_USERNAME` | 飞牛影视登录账号，留空则用第一个管理员 |
-| 环境变量 | `FNNAS_DB_PATH` | 数据库路径，容器内固定 `/fnnas-db/trimmedia.db` |
-| 环境变量 | `WEB_PORT` | WebUI 端口，默认 5000 |
-| 环境变量 | `WEB_TOKEN` | 访问口令，设了就要在网页里输入 |
+| `.env` | `FNNAS_USERNAME` | 飞牛影视登录账号，留空则用第一个管理员 |
+| `.env` | `WEB_PORT` | WebUI 端口，默认 5000 |
+| `.env` | `WEB_TOKEN` | 访问口令，设了就要在网页里输入 |
+| `.env` | `FNNAS_DB_PATH` | 数据库路径，容器内固定 `/fnnas-db/trimmedia.db` |
 | `config/config.json` | `fnnas.path_map` | 宿主机资源根 → 下载器容器内根，可写多条 |
-| `config/config.json` | `web.token` | 同上，环境变量优先 |
 
 `path_map` 示例（宿主机 `/vol1/1000/12T` 在下载器里是 `/downloads`）：
 
