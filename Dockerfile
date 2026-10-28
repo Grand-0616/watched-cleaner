@@ -7,14 +7,9 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 拷贝代码
+# 拷贝代码（默认配置内置在 cleaner.py 的 DEFAULT_CONFIG，首次启动自动生成）
 COPY app.py cleaner.py ./
 COPY templates ./templates
-
-# 只拷贝模板：首次启动时程序会自动用它在 /app/config/ 下生成真实配置。
-# docker-compose 会把宿主机 ./config 目录挂载到 /app/config，
-# 所以配置存在宿主机上，重建镜像、更新代码都不会覆盖它。
-COPY config.example.json downloaders.example.json ./
 
 EXPOSE 5000
 

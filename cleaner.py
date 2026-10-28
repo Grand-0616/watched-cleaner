@@ -33,16 +33,28 @@ CONFIG_DIR = os.path.join(BASE_DIR, "config")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 # WebUI 可写的下载器配置(独立于只读的 config.json)，便于在网页里增删改下载器
 DL_OVERRIDE = os.path.join(CONFIG_DIR, "downloaders.json")
-# 仓库自带的模板，首次启动时用它生成上面的真实配置
-EXAMPLE_CONFIG = os.path.join(BASE_DIR, "config.example.json")
-EXAMPLE_DOWNLOADERS = os.path.join(BASE_DIR, "downloaders.example.json")
+# 首次启动写入 config/config.json 的默认配置（全部占位，账号/口令留空）
+DEFAULT_CONFIG = {
+    "fnnas": {
+        "db_path": "/fnnas-db/trimmedia.db",
+        "username": "",
+        "path_map": [
+            {"host_root": "/vol1/1000/Media", "container_root": "/downloads"}
+        ],
+    },
+    "downloaders": [
+        {"type": "transmission", "url": "http://127.0.0.1:9091", "user": "", "pass": ""},
+        {"type": "qbittorrent", "url": "http://127.0.0.1:8080", "user": "", "pass": ""},
+    ],
+    "web": {"host": "0.0.0.0", "port": 5000, "token": ""},
+}
 
 
 def ensure_config():
     """首次启动自动准备 config/ 下的配置文件，免去手动 cp。
 
     - config/ 不存在 -> 创建
-    - config/config.json 不存在 -> 从 config.example.json 复制
+    - config/config.json 不存在 -> 写入内置默认配置 DEFAULT_CONFIG
     - config/downloaders.json 不存在 -> 写入 {"downloaders": []}
     - 兼容旧布局：根目录若还留着 config.json / downloaders.json，自动迁移进来
 
@@ -64,12 +76,9 @@ def ensure_config():
                 print(f"[config] 迁移 {old_name} 失败: {e}")
 
     if not os.path.exists(CONFIG_PATH):
-        if os.path.isfile(EXAMPLE_CONFIG):
-            shutil.copyfile(EXAMPLE_CONFIG, CONFIG_PATH)
-            print(f"[config] 已生成默认配置 {CONFIG_PATH}")
-        else:
-            raise RuntimeError(
-                f"缺少配置文件 {CONFIG_PATH}，且找不到模板 {EXAMPLE_CONFIG}")
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CONFIG, f, ensure_ascii=False, indent=2)
+        print(f"[config] 已生成默认配置 {CONFIG_PATH}")
 
     if not os.path.exists(DL_OVERRIDE):
         with open(DL_OVERRIDE, "w", encoding="utf-8") as f:

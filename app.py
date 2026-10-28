@@ -25,7 +25,7 @@ from flask import Flask, request, jsonify, render_template
 from cleaner import Cleaner, load_config, save_downloaders, ensure_config
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 首次启动自动生成 config/config.json（模板来自 config.example.json），
+# 首次启动自动生成 config/config.json（默认值来自 cleaner.DEFAULT_CONFIG），
 # 所以部署时不需要手动 cp，更新代码也不会覆盖已有配置。
 CONFIG_PATH = ensure_config()
 

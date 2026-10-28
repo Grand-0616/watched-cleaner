@@ -36,8 +36,6 @@ watched-cleaner/
 ├── app.py                  Flask 后端（/api/watched 已看清单、/api/downloaders 下载器管理）
 ├── cleaner.py              核心：飞牛影视已看读取 + 下载器客户端 + 文件路径匹配
 ├── templates/index.html    WebUI 前端（自动加载清单、勾选删除、下载器设置）
-├── config.example.json     配置模板（首次启动据此生成 config/config.json）
-├── downloaders.example.json 下载器配置模板
 ├── config/                 运行期配置目录（挂载进容器，不在 git 里）
 │   ├── config.json         首次启动自动生成，账号/口令填这里
 │   └── downloaders.json    首次启动自动生成，WebUI 增删改下载器写这里
@@ -69,7 +67,7 @@ docker compose up -d --build
 **不需要 mkdir，也不需要 cp。** 首次启动时程序会自动：
 
 1. 在当前目录创建 `config/` 文件夹；
-2. 用 `config.example.json` 生成 `config/config.json`；
+2. 用内置的默认配置（`cleaner.py` 里的 `DEFAULT_CONFIG`）生成 `config/config.json`；
 3. 生成空的 `config/downloaders.json`。
 
 容器日志里会看到：
@@ -138,7 +136,7 @@ docker compose restart
 
 ```bash
 cd /vol1/docker/watched-cleaner
-git pull                      # 只更新代码和 .example 模板
+git pull                      # 只更新代码
 docker compose up -d --build  # 重建镜像；运行时仍挂载你自己的 config/ 目录
 ```
 
@@ -183,9 +181,9 @@ docker compose up -d --build
 
 ## 6. 隐私与提交前检查
 
-本仓库不包含任何真实账号、密码、内网 IP 或私有路径。仓库里只有 `config.example.json` /
-`downloaders.example.json` 两个全占位模板；你部署时容器自动生成的 `config/` 目录已被
-`.gitignore` 排除，不会误提交。
+本仓库不包含任何真实账号、密码、内网 IP 或私有路径。默认配置内置在 `cleaner.py` 的
+`DEFAULT_CONFIG` 里，账号、口令、下载器密码全部为空；你部署时容器自动生成的 `config/`
+目录已被 `.gitignore` 排除，不会误提交。
 
 | 文件                       | 可能包含                                             | 是否进 git              |
 | ------------------------ | ------------------------------------------------ | -------------------- |
@@ -199,7 +197,7 @@ docker compose up -d --build
 想确认某个文件到底有没有被追踪，用：
 
 ```bash
-git ls-files | grep -E 'config|downloaders'   # 只应出现 *.example.json
+git ls-files | grep -E 'config|downloaders'   # 应该没有任何输出
 ```
 
 自查命令（在项目根目录执行）：
