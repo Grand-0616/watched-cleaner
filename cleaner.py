@@ -88,6 +88,30 @@ def ensure_config():
     return CONFIG_PATH
 
 
+# 允许用环境变量覆盖配置，方便在 docker-compose.yml 里直接写，
+# 不用进容器改文件。留空或未设置时以 config/config.json 为准。
+ENV_OVERRIDES = {
+    "FNNAS_USERNAME": ("fnnas", "username", str),
+    "FNNAS_DB_PATH": ("fnnas", "db_path", str),
+    "WEB_PORT": ("web", "port", int),
+    "WEB_TOKEN": ("web", "token", str),
+}
+
+
+def apply_env_overrides(cfg):
+    """用环境变量覆盖配置项（优先级高于 config/config.json）。"""
+    for env_key, (section, key, cast) in ENV_OVERRIDES.items():
+        raw = os.environ.get(env_key)
+        if raw is None or raw.strip() == "":
+            continue
+        try:
+            cfg.setdefault(section, {})[key] = cast(raw.strip())
+            print(f"[config] 环境变量 {env_key} 覆盖 {section}.{key}")
+        except (TypeError, ValueError) as e:
+            print(f"[config] 环境变量 {env_key} 无效({raw!r})，已忽略: {e}")
+    return cfg
+
+
 # 规范化种子名 -> 作品身份(主名+季)，用于聚合同作品的不同分辨率/版本
 _SEASON_RE = re.compile(r"\.?S(\d{1,2})(?:\s*E\d{1,3})?\b", re.I)
 _TOKEN_RE = re.compile(

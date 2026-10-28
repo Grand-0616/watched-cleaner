@@ -5,21 +5,24 @@ services:
     container_name: watched-cleaner
     restart: unless-stopped
     # host 网络：容器与宿主机共享网络，用 127.0.0.1 访问 qB/TR(本机回环免认证)，
-    # WebUI 直接监听宿主机 5000 端口(无需 ports 映射)
+    # WebUI 直接监听宿主机端口(无需 ports 映射)
     network_mode: host
     volumes:
-      # 飞牛影视数据库目录(只读挂载) —— 与 config.json 的 fnnas.db_path 对应
+      # 飞牛影视数据库目录(只读挂载) —— 对应 config.json 的 fnnas.db_path
       - /usr/local/apps/@appdata/trim.media/database:/fnnas-db:ro
 
-      # 配置目录：挂载宿主机 ./config。
-      # 容器首次启动会在里面自动生成 config.json / downloaders.json，
-      # 之后你改配置、WebUI 里改下载器，文件都留在宿主机上。
-      # 该目录不在 git 里，所以 git pull 更新代码、重建镜像都不会覆盖配置。
-      # 目录不存在时 Docker 会自动创建，无需手动 mkdir 或 cp。
+      # 配置目录：挂载宿主机 ./config。容器首次启动自动在里面生成
+      # config.json / downloaders.json，之后设置都留在宿主机上。
+      # 该目录不在 git 里，所以 git pull、重建镜像都不会覆盖配置。
       - ./config:/app/config
 
-      # 资源数据盘(以相同路径挂载，供"已看但未做种"直接删除文件)。与 config.json path_map 的 host_root 对应
+      # 资源数据盘(与宿主机相同路径挂载)，对应 config.json 的 path_map
       - /vol1/1000:/vol1/1000
       - /vol2/1000:/vol2/1000
     environment:
       - TZ=Asia/Shanghai
+      # 飞牛影视登录账号：填在这里就不用再改 config.json。
+      # 留空则自动使用数据库里的第一个管理员用户。
+      - FNNAS_USERNAME=
+      # WebUI 端口，默认 5000。想改端口也可以直接改 config/config.json。
+      # - WEB_PORT=5000
